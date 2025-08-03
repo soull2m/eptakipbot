@@ -1,0 +1,54 @@
+import requests
+from bs4 import BeautifulSoup
+import time
+import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+
+URL = "https://snowmtl.ru/comics/my-disciples-are-all-big-villains"
+CHECK_INTERVAL = 3600
+last_seen_title = None
+
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": message}
+    try:
+        requests.post(url, data=payload)
+    except Exception as e:
+        print(f"Telegram mesajı gönderilemedi: {e}")
+
+def get_latest_chapter_title():
+    try:
+        response = requests.get(URL)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        chapter_link = soup.find("a", class_="list-group-item")
+        if chapter_link:
+            return chapter_link.text.strip()
+        return None
+    except Exception as e:
+        print(f"Site kontrol hatası: {e}")
+        return None
+
+def main():
+    global last_seen_title
+    while True:
+        print("Yeni bölüm kontrol ediliyor...")
+        current_title = get_latest_chapter_title()
+        if current_title:
+            if last_seen_title is None:
+                last_seen_title = current_title
+                print(f"İlk kontrol: {current_title}")
+            elif current_title != last_seen_title:
+                print(f"Yeni bölüm bulundu: {current_title}")
+                send_telegram_message(f"📘 Yeni Bölüm Yayında: {current_title}\n{URL}")
+                last_seen_title = current_title
+            else:
+                print("Yeni bölüm yok.")
+        else:
+            print("Başlık alınamadı.")
+        time.sleep(CHECK_INTERVAL)
+
+if __name__ == "__main__":
+    main()
